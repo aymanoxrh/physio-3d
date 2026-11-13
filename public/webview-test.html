@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Physio3D — WebView Integration & AI Treatment Simulator</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    body { display: flex; height: 100vh; background: #090d16; color: #f8fafc; overflow: hidden; }
+    #webview-container { flex: 1; height: 100%; position: relative; border-right: 1px solid #1e293b; }
+    #webview-frame { width: 100%; height: 100%; border: none; }
+    #sidebar { width: 420px; height: 100%; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; background: #0f172a; }
+    .brand-header { display: flex; align-items: center; gap: 12px; }
+    .brand-logo { width: 40px; height: 40px; border-radius: 10px; }
+    h1 { font-size: 1.25rem; font-weight: 700; color: #f8fafc; letter-spacing: -0.02em; }
+    h1 span { background: linear-gradient(135deg, #38bdf8, #34d399); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 14px; }
+    .label { font-size: 0.72rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; font-weight: 600; }
+    .value { font-size: 1.05rem; font-weight: 700; color: #f1f5f9; word-break: break-word; }
+    .value.arabic { font-family: 'IBM Plex Sans Arabic', sans-serif; color: #34d399; font-size: 1.15rem; margin-top: 3px; }
+    .badge { display: inline-block; font-size: 0.7rem; font-weight: 700; padding: 3px 9px; border-radius: 9999px; margin-top: 6px; }
+    .badge.muscle { background: #064e3b; color: #6ee7b7; border: 1px solid #059669; }
+    .badge.bone { background: #713f12; color: #fde047; border: 1px solid #a16207; }
+    .badge.ai { background: #1e1b4b; color: #a5b4fc; border: 1px solid #4f46e5; }
+    .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    button { background: #334155; color: #f8fafc; border: 1px solid #475569; padding: 8px 12px; border-radius: 6px; font-size: 0.82rem; cursor: pointer; transition: all 0.15s; font-weight: 500; }
+    button:hover { background: #475569; border-color: #64748b; }
+    button.primary { background: #0284c7; border-color: #38bdf8; }
+    button.primary:hover { background: #0369a1; }
+    .ai-box { background: #020617; border: 1px solid #1e293b; border-radius: 8px; padding: 12px; font-size: 0.82rem; line-height: 1.5; color: #cbd5e1; max-height: 220px; overflow-y: auto; }
+    .ai-box h4 { color: #38bdf8; margin-bottom: 6px; font-size: 0.88rem; display: flex; align-items: center; gap: 6px; }
+    .ai-box ul { padding-left: 18px; margin: 6px 0; }
+    .ai-box li { margin-bottom: 4px; }
+    #logs { font-family: monospace; font-size: 0.72rem; max-height: 140px; overflow-y: auto; background: #020617; padding: 10px; border-radius: 6px; border: 1px solid #1e293b; color: #a5f3fc; line-height: 1.4; }
+    .log-entry { margin-bottom: 5px; padding-bottom: 5px; border-bottom: 1px dashed #1e293b; }
+  </style>
+</head>
+<body>
+
+  <!-- Simulated WebView Container -->
+  <div id="webview-container">
+    <iframe id="webview-frame" src="/"></iframe>
+  </div>
+
+  <!-- Simulated Host Application Control Panel -->
+  <div id="sidebar">
+    <div class="brand-header">
+      <img src="/favicon.svg" alt="Physio3D" class="brand-logo" />
+      <div>
+        <h1>Physio<span>3D</span></h1>
+        <p style="font-size: 0.75rem; color: #94a3b8;">Precision Anatomy & AI Treatment Engine</p>
+      </div>
+    </div>
+
+    <!-- Clicked Part Details -->
+    <div class="card">
+      <div class="label">Tapped Structure</div>
+      <div id="part-name" class="value">None (Tap body on left)</div>
+      <div id="part-arabic" class="value arabic"></div>
+      <div id="part-badge" class="badge" style="display: none;"></div>
+      <div style="margin-top: 8px; font-size: 0.78rem; color: #94a3b8;">
+        ID: <span id="part-id" style="color: #cbd5e1;">-</span> |
+        System: <span id="part-system" style="color: #cbd5e1;">-</span>
+      </div>
+    </div>
+
+    <!-- AI Treatment Recommendation Box -->
+    <div class="card" style="border-color: #0284c7;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <div class="label" style="color: #38bdf8;">🤖 AI Physiotherapy Treatment</div>
+        <span class="badge ai">AI Engine</span>
+      </div>
+      <div id="ai-treatment" class="ai-box">
+        <p style="color: #64748b; font-style: italic;">
+          Tap any muscle or structure on the 3D body. The AI will instantly generate recommended recovery protocol, stretches, and rehabilitation guidance here.
+        </p>
+      </div>
+    </div>
+
+    <!-- API Controls (Host App -> WebView) -->
+    <div class="card">
+      <div class="label">Simulate App Commands</div>
+      <div class="btn-grid" style="margin-top: 8px;">
+        <button onclick="selectPart('biceps brachii')">Select Biceps</button>
+        <button onclick="selectPart('deltoid')">Select Deltoid</button>
+        <button onclick="selectPart('patella')">Select Kneecap</button>
+        <button onclick="selectPart('gastrocnemius')">Select Calf</button>
+        <button onclick="selectPart('frontal bone')">Select Skull (Head)</button>
+        <button onclick="selectPart('rectus abdominis')">Select Abs</button>
+        <button onclick="setView('front')">View Front</button>
+        <button onclick="setView('back')">View Back</button>
+        <button onclick="toggleRotate()">Toggle Rotate</button>
+        <button onclick="toggleSex()">Switch Male/Female</button>
+        <button onclick="resetCamera()">Reset View</button>
+        <button onclick="clearSelection()">Clear Select</button>
+      </div>
+    </div>
+
+    <!-- Live Event Log -->
+    <div class="card">
+      <div class="label">Live WebView Event Stream</div>
+      <div id="logs"></div>
+    </div>
+  </div>
+
+  <script>
+    const iframe = document.getElementById('webview-frame');
+    let rotating = false;
+    let currentSex = 'male';
+
+    function addLog(msg, data) {
+      const logs = document.getElementById('logs');
+      const div = document.createElement('div');
+      div.className = 'log-entry';
+      const time = new Date().toLocaleTimeString();
+      div.innerHTML = `<span style="color:#64748b;">[${time}]</span> <strong style="color:#38bdf8;">${msg}</strong><br/>` +
+                      (data ? `<pre style="color:#94a3b8; font-size:0.68rem;">${JSON.stringify(data, null, 2)}</pre>` : '');
+      logs.prepend(div);
+    }
+
+    // AI Treatment Generator Simulation
+    function generateAiTreatment(name, nameAr, isMuscle) {
+      const aiBox = document.getElementById('ai-treatment');
+      aiBox.innerHTML = `<p style="color:#38bdf8;">⚡ Consulting Physio3D AI Clinical Engine for <strong>${name}</strong>...</p>`;
+
+      setTimeout(() => {
+        if (isMuscle) {
+          aiBox.innerHTML = `
+            <h4>🩺 AI Treatment Protocol: ${name}</h4>
+            <p><strong>Primary Function:</strong> Movement and articulation support.</p>
+            <ul>
+              <li><strong>Immediate Care:</strong> Apply R.I.C.E. protocol (Ice for 15-20 min every 3 hours if acute soreness).</li>
+              <li><strong>Targeted Stretch:</strong> Gentle elongation hold for 20-30 seconds. Do not bounce.</li>
+              <li><strong>Rehabilitation:</strong> Light isometric contractions, progress to controlled concentric resistance.</li>
+              <li><strong>Doctor Warning:</strong> Seek immediate medical care if sharp tearing sensation or visible swelling occurs.</li>
+            </ul>
+          `;
+        } else {
+          aiBox.innerHTML = `
+            <h4>🦴 Structural Analysis: ${name}</h4>
+            <p><strong>Skeletal Structure:</strong> Provides bone architecture and load-bearing support for muscle attachments.</p>
+            <ul>
+              <li><strong>Assessment:</strong> Check joint range of motion and ligamentous stability.</li>
+              <li><strong>Care:</strong> Avoid high-impact axial loads if contused or symptomatic.</li>
+              <li><strong>Evaluation:</strong> X-ray or MRI recommended if acute trauma or localized bone tenderness.</li>
+            </ul>
+          `;
+        }
+      }, 350);
+    }
+
+    // Receive message from 3D WebView page
+    window.addEventListener('message', (event) => {
+      const data = event.data;
+      if (!data) return;
+
+      if (data.type === 'MUSCLE_CLICK' || data.type === 'PART_CLICK' || data.event === 'muscleClick' || data.event === 'partClick') {
+        const item = data.part || data.muscle || data;
+        document.getElementById('part-name').innerText = item.name || 'Unknown';
+        document.getElementById('part-arabic').innerText = item.nameAr || '';
+        document.getElementById('part-id').innerText = item.id || '-';
+        document.getElementById('part-system').innerText = item.system || '-';
+
+        const isMuscle = item.isMuscle || item.system === 'muscular' || item.system === 'donor-muscle';
+        const badge = document.getElementById('part-badge');
+        badge.style.display = 'inline-block';
+        if (isMuscle) {
+          badge.className = 'badge muscle';
+          badge.innerText = 'MUSCLE';
+        } else {
+          badge.className = 'badge bone';
+          badge.innerText = (item.system || 'STRUCTURE').toUpperCase();
+        }
+
+        // Trigger AI Treatment
+        generateAiTreatment(item.name, item.nameAr, isMuscle);
+
+        addLog(`Clicked: ${item.name} (${item.system})`, item);
+      } else if (data.type === 'PART_DESELECTED' || data.type === 'MUSCLE_DESELECTED') {
+        document.getElementById('part-name').innerText = 'None';
+        document.getElementById('part-arabic').innerText = '';
+        document.getElementById('part-id').innerText = '-';
+        document.getElementById('part-system').innerText = '-';
+        document.getElementById('part-badge').style.display = 'none';
+        document.getElementById('ai-treatment').innerHTML = `
+          <p style="color: #64748b; font-style: italic;">
+            Tap any muscle on the 3D model to see instant AI recovery and physiotherapy advice.
+          </p>
+        `;
+        addLog('Deselected');
+      } else if (data.type === 'MODEL_READY') {
+        addLog('Physio3D Model Ready', data.data);
+      }
+    });
+
+    // Helper functions to send commands into WebView
+    function sendCommand(action, data) {
+      iframe.contentWindow.postMessage({ action, data }, '*');
+    }
+
+    function selectPart(name) {
+      sendCommand('selectPart', name);
+    }
+
+    function setView(view) {
+      sendCommand('setView', view);
+    }
+
+    function toggleRotate() {
+      rotating = !rotating;
+      sendCommand('setRotate', rotating);
+    }
+
+    function toggleSex() {
+      currentSex = currentSex === 'male' ? 'female' : 'male';
+      sendCommand('setSex', currentSex);
+      addLog(`Switched sex to: ${currentSex}`);
+    }
+
+    function resetCamera() {
+      sendCommand('resetCamera');
+    }
+
+    function clearSelection() {
+      sendCommand('clearSelection');
+    }
+  </script>
+</body>
+</html>
